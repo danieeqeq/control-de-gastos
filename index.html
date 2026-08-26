@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Gastos</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6366f1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js")
+      .then(() => console.log("Service Worker registrado"))
+      .catch(error => console.error("Error Service Worker:", error));
+  });
+}
+</script>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">💰 <span>Control</span></div>
+      <nav>
+        <button class="nav-btn active" data-section="inicio">🏠 Inicio</button>
+        <button class="nav-btn" data-section="movimientos">📋 Movimientos</button>
+        <button class="nav-btn" data-section="resumen">📊 Resumen mensual</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button id="themeBtn" class="ghost-btn">🌙 Modo oscuro</button>
+        <button id="clearBtn" class="danger-btn">🗑️ Borrar todo</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CONTROL FINANCIERO</p>
+          <h1 id="pageTitle">Mi dinero</h1>
+        </div>
+        <button id="addTopBtn" class="primary">＋ Nuevo movimiento</button>
+      </header>
+
+      <section id="inicio" class="section active">
+        <div class="month-row">
+          <div>
+            <h2 id="welcomeMonth"></h2>
+            <p class="muted">Tus finanzas se actualizan automáticamente.</p>
+          </div>
+          <input type="month" id="monthPicker">
+        </div>
+
+        <div class="cards">
+          <article class="card balance"><span>💰 Dinero disponible</span><strong id="balance">S/ 0.00</strong><small>Ingresos − gastos</small></article>
+          <article class="card income"><span>🟢 Ingresos</span><strong id="income">S/ 0.00</strong><small>Este mes</small></article>
+          <article class="card expense"><span>🔴 Gastos</span><strong id="expense">S/ 0.00</strong><small>Este mes</small></article>
+          <article class="card count"><span>📋 Movimientos</span><strong id="count">0</strong><small>Registrados este mes</small></article>
+        </div>
+
+        <div class="grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Últimos movimientos</h3><button class="link-btn" data-go="movimientos">Ver todos →</button></div>
+            <div id="recentList" class="movement-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><h3>Gastos por categoría</h3></div>
+            <div class="chart-wrap"><canvas id="categoryChart"></canvas><div id="noChart" class="empty-chart">No hay gastos todavía.</div></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="movimientos" class="section">
+        <div class="section-title">
+          <div><h2>Movimientos</h2><p class="muted">Registra todo lo que ganas y gastas.</p></div>
+          <button class="primary" id="addBtn">＋ Agregar</button>
+        </div>
+        <div class="filters panel">
+          <input id="search" type="search" placeholder="🔍 Buscar movimiento...">
+          <select id="typeFilter"><option value="all">Todos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select>
+          <select id="categoryFilter"><option value="all">Todas las categorías</option></select>
+        </div>
+        <div class="panel table-panel">
+          <div id="allMovements" class="movement-list"></div>
+        </div>
+      </section>
+
+      <section id="resumen" class="section">
+        <div class="section-title">
+          <div><h2>Resumen mensual</h2><p class="muted">Consulta cómo te fue cada mes.</p></div>
+          <input type="month" id="summaryMonth">
+        </div>
+        <div class="cards">
+          <article class="card income"><span>🟢 Total ganado</span><strong id="summaryIncome">S/ 0.00</strong></article>
+          <article class="card expense"><span>🔴 Total gastado</span><strong id="summaryExpense">S/ 0.00</strong></article>
+          <article class="card balance"><span>💰 Balance</span><strong id="summaryBalance">S/ 0.00</strong></article>
+        </div>
+        <div class="grid">
+          <article class="panel"><div class="panel-head"><h3>Ingresos vs gastos</h3></div><div class="chart-wrap"><canvas id="monthlyChart"></canvas></div></article>
+          <article class="panel"><div class="panel-head"><h3>Detalle por categoría</h3></div><div id="categorySummary"></div></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><h2 id="modalTitle">Nuevo movimiento</h2><button id="closeModal">×</button></div>
+      <form id="movementForm">
+        <input type="hidden" id="editId">
+        <label>Tipo
+          <div class="type-switch">
+            <label><input type="radio" name="type" value="expense" checked><span>🔴 Gasto</span></label>
+            <label><input type="radio" name="type" value="income"><span>🟢 Ingreso</span></label>
+          </div>
+        </label>
+        <label>Descripción<input id="description" required maxlength="60" placeholder="Ej. Sueldo, comida, pasaje..."></label>
+        <div class="two">
+          <label>Monto (S/)<input id="amount" type="number" min="0.01" step="0.01" required placeholder="0.00"></label>
+          <label>Fecha<input id="date" type="date" required></label>
+        </div>
+        <label>Categoría
+          <select id="category" required>
+            <option value="Comida">🍔 Comida</option>
+            <option value="Transporte">🚗 Transporte</option>
+            <option value="Casa">🏠 Casa</option>
+            <option value="Entretenimiento">🎮 Entretenimiento</option>
+            <option value="Compras">🛍️ Compras</option>
+            <option value="Salud">💊 Salud</option>
+            <option value="Trabajo">💼 Trabajo</option>
+            <option value="Educación">📚 Educación</option>
+            <option value="Otros">📦 Otros</option>
+          </select>
+        </label>
+        <label>Nota (opcional)<textarea id="note" maxlength="120" placeholder="Algún detalle..."></textarea></label>
+        <button class="primary full" type="submit">Guardar movimiento</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
